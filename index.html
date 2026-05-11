@@ -40,12 +40,13 @@
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
             <!-- Pilihan Laptop -->
-            <button onclick="startAsLaptop()" class="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-indigo-500 hover:bg-slate-800/80 transition-all btn-press group flex flex-col items-center text-center">
+            <button onclick="document.getElementById('slide-upload').click()" class="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-indigo-500 hover:bg-slate-800/80 transition-all btn-press group flex flex-col items-center text-center relative overflow-hidden">
+                <input type="file" id="slide-upload" accept="image/*" multiple class="hidden" onchange="handleFileUpload(event)">
                 <div class="w-20 h-20 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <i class="fa-solid fa-laptop text-4xl"></i>
                 </div>
                 <h2 class="text-xl font-bold mb-2">Saya Layar Presentasi</h2>
-                <p class="text-sm text-slate-400">Buka slide di perangkat ini dan dapatkan PIN koneksi.</p>
+                <p class="text-sm text-slate-400">Pilih gambar slide (JPG/PNG) dari komputer Anda untuk mulai.</p>
             </button>
 
             <!-- Pilihan HP -->
@@ -77,15 +78,14 @@
         </div>
 
         <!-- Layar Presentasi (Muncul setelah HP Konek) -->
-        <div id="laptop-presentation" class="hidden w-full h-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden relative text-slate-900 flex flex-col">
-            <!-- Ini adalah Contoh Slide Presentasi -->
-            <div id="slide-content" class="flex-1 flex flex-col items-center justify-center p-12 text-center slide-enter">
-                <h1 id="slide-title" class="text-5xl font-bold mb-6 text-indigo-600">Judul Slide</h1>
-                <p id="slide-text" class="text-2xl text-slate-600">Isi materi presentasi akan tampil di sini.</p>
+        <div id="laptop-presentation" class="hidden w-full h-full max-w-5xl bg-black rounded-2xl shadow-2xl overflow-hidden relative flex flex-col">
+            <!-- Ini adalah Tempat Slide Gambar -->
+            <div id="slide-content" class="flex-1 flex items-center justify-center bg-black slide-enter overflow-hidden">
+                <img id="slide-image" src="" alt="Slide" class="max-w-full max-h-full object-contain">
             </div>
-            <div class="bg-slate-100 p-4 flex justify-between items-center border-t border-slate-200">
-                <div class="text-slate-500 font-bold">Slide <span id="slide-number">1</span> / 5</div>
-                <div class="text-emerald-600 text-sm font-bold"><i class="fa-solid fa-link"></i> Remote Terhubung</div>
+            <div class="bg-slate-900 p-4 flex justify-between items-center border-t border-slate-800 text-slate-300">
+                <div class="font-bold">Slide <span id="slide-number">1</span> / <span id="slide-total">0</span></div>
+                <div class="text-emerald-500 text-sm font-bold"><i class="fa-solid fa-link"></i> Remote Terhubung</div>
             </div>
         </div>
     </div>
@@ -135,15 +135,24 @@
         let peer = null;
         let connection = null;
 
-        // Data Presentasi Dummy (Jika ini aplikasi sungguhan, pengguna bisa upload gambar)
-        const slides = [
-            { title: "Masa Depan Teknologi", text: "Perkembangan AI dan Web 3.0" },
-            { title: "Masalah Saat Ini", text: "Banyak presenter ribet bawa alat clicker fisik." },
-            { title: "Solusinya: Clicker Pro", text: "Gunakan HP Anda sebagai remote pintar. Tanpa install aplikasi." },
-            { title: "Cara Kerjanya", text: "Scan QR Code atau masukkan PIN, langsung terhubung real-time." },
-            { title: "Terima Kasih", text: "Ada pertanyaan?" }
-        ];
+        // Data Presentasi
+        let slides = [];
         let currentSlide = 0;
+
+        function handleFileUpload(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+
+            // Urutkan file berdasarkan nama (misal: 1.jpg, 2.jpg)
+            files.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+
+            // Ubah file fisik menjadi URL lokal di browser
+            slides = files.map(file => URL.createObjectURL(file));
+            document.getElementById('slide-total').innerText = slides.length;
+            
+            // Lanjut ke layar persiapan (menampilkan PIN)
+            startAsLaptop();
+        }
 
         function showToast(msg, isError = false) {
             const t = document.getElementById('toast');
@@ -217,8 +226,7 @@
             void content.offsetWidth; // trigger reflow
             content.classList.add('slide-enter');
 
-            document.getElementById('slide-title').innerText = slides[currentSlide].title;
-            document.getElementById('slide-text').innerText = slides[currentSlide].text;
+            document.getElementById('slide-image').src = slides[currentSlide];
             document.getElementById('slide-number').innerText = currentSlide + 1;
         }
 
