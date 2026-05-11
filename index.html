@@ -3,155 +3,214 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Clicker Pro - Web Presenter</title>
+    <title>Smart Presenter & Remote</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Menggunakan PeerJS untuk koneksi Realtime Web-to-Web tanpa Server -->
+    <!-- PeerJS untuk Koneksi Realtime -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background-color: #0f172a; color: white; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #0f172a; color: white; -webkit-tap-highlight-color: transparent; overflow: hidden; }
         .btn-press:active { transform: scale(0.95); }
         button { touch-action: manipulation; }
         
-        /* Animasi Transisi Slide */
-        .slide-enter { animation: fadeInRight 0.5s forwards; }
-        @keyframes fadeInRight {
-            from { opacity: 0; transform: translateX(50px); }
-            to { opacity: 1; transform: translateX(0); }
+        /* Slide Styles & Animations */
+        .slide { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 3rem; }
+        .slide.active { display: flex; animation: fadeUp 0.6s ease-out forwards; }
+        
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Mode Presentasi (Full Screen View) */
+        #screen-presentation.fullscreen-mode {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; background: #000;
         }
     </style>
 </head>
-<body class="flex flex-col h-screen overflow-hidden">
+<body class="flex flex-col h-screen">
 
-    <!-- Navbar -->
-    <div class="p-4 bg-slate-900 border-b border-slate-800 text-center flex justify-between items-center shadow-md shrink-0">
+    <!-- NAVBAR (Disembunyikan saat mode presentasi) -->
+    <div id="navbar" class="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center shadow-md shrink-0 z-50">
         <div class="font-bold text-xl tracking-wider text-indigo-400 cursor-pointer" onclick="location.reload()">
-            <i class="fa-solid fa-wifi mr-2"></i>CLICKER<span class="text-white">PRO</span>
+            <i class="fa-solid fa-bolt mr-2"></i>SMART<span class="text-white">SLIDES</span>
         </div>
         <div id="status-badge" class="text-xs font-semibold px-3 py-1 rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30">
-            Pilih Peran
+            Pilih Mode
         </div>
     </div>
 
-    <!-- HALAMAN 1: PILIH PERAN -->
-    <div id="role-selection" class="flex-1 flex flex-col items-center justify-center p-6 transition-all duration-300">
-        <h1 class="text-3xl font-bold mb-2">Selamat Datang</h1>
-        <p class="text-slate-400 mb-8 text-center max-w-md">Sistem kontrol presentasi jarak jauh tanpa perlu install aplikasi. Pilih perangkat Anda:</p>
+    <!-- ================================================== -->
+    <!-- LAYAR 1: PILIH MODE (Tampil Pertama Kali)          -->
+    <!-- ================================================== -->
+    <div id="screen-selection" class="flex-1 flex flex-col items-center justify-center p-6">
+        <h1 class="text-3xl font-bold mb-2">Sistem Presentasi Terpadu</h1>
+        <p class="text-slate-400 mb-8 text-center max-w-md">Satu file untuk Layar dan Remote. Buka file ini di Laptop dan HP Anda.</p>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
-            <!-- Pilihan Laptop -->
-            <button onclick="document.getElementById('slide-upload').click()" class="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-indigo-500 hover:bg-slate-800/80 transition-all btn-press group flex flex-col items-center text-center relative overflow-hidden">
-                <input type="file" id="slide-upload" accept="image/*" multiple class="hidden" onchange="handleFileUpload(event)">
-                <div class="w-20 h-20 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <i class="fa-solid fa-laptop text-4xl"></i>
+            <!-- Tombol Layar Laptop -->
+            <button onclick="startAsHost()" class="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-indigo-500 hover:bg-slate-800/80 transition-all btn-press flex flex-col items-center text-center">
+                <div class="w-20 h-20 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-desktop text-4xl"></i>
                 </div>
-                <h2 class="text-xl font-bold mb-2">Saya Layar Presentasi</h2>
-                <p class="text-sm text-slate-400">Pilih gambar slide (JPG/PNG) dari komputer Anda untuk mulai.</p>
+                <h2 class="text-xl font-bold mb-2">Tampilkan Presentasi</h2>
+                <p class="text-sm text-slate-400">Jadikan perangkat ini sebagai layar utama (Host).</p>
             </button>
 
-            <!-- Pilihan HP -->
-            <button onclick="startAsRemote()" class="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-emerald-500 hover:bg-slate-800/80 transition-all btn-press group flex flex-col items-center text-center">
-                <div class="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+            <!-- Tombol Remote HP -->
+            <button onclick="startAsRemote()" class="bg-slate-800 p-8 rounded-3xl border border-slate-700 hover:border-emerald-500 hover:bg-slate-800/80 transition-all btn-press flex flex-col items-center text-center">
+                <div class="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mb-4">
                     <i class="fa-solid fa-mobile-screen-button text-4xl"></i>
                 </div>
-                <h2 class="text-xl font-bold mb-2">Saya Remote Kontrol</h2>
-                <p class="text-sm text-slate-400">Gunakan perangkat ini untuk mengontrol slide dengan PIN.</p>
+                <h2 class="text-xl font-bold mb-2">Gunakan Remote</h2>
+                <p class="text-sm text-slate-400">Jadikan HP ini sebagai pengontrol slide presentasi.</p>
             </button>
         </div>
     </div>
 
-    <!-- ========================================== -->
-    <!-- TAMPILAN LAPTOP (RECEIVER / SLIDE VIEWER)  -->
-    <!-- ========================================== -->
-    <div id="laptop-view" class="hidden flex-1 flex-col items-center justify-center p-6 relative">
-        
-        <!-- Layar Menunggu Koneksi -->
-        <div id="laptop-waiting" class="bg-slate-800 p-10 rounded-3xl border border-slate-700 text-center max-w-md shadow-2xl">
-            <h2 class="text-2xl font-bold mb-2">Siap Menerima Remote</h2>
-            <p class="text-slate-400 text-sm mb-6">Buka website ini di HP Anda, pilih "Remote", dan masukkan PIN di bawah ini:</p>
+    <!-- ================================================== -->
+    <!-- LAYAR HOST: TAMPILAN PRESENTASI & MENUNGGU KONEKSI -->
+    <!-- ================================================== -->
+    
+    <!-- Menunggu Koneksi PIN -->
+    <div id="screen-host-waiting" class="hidden flex-1 flex-col items-center justify-center p-6">
+        <div class="bg-slate-800 p-10 rounded-3xl border border-slate-700 text-center shadow-2xl">
+            <h2 class="text-2xl font-bold mb-2">Koneksikan Remote</h2>
+            <p class="text-slate-400 text-sm mb-6">Buka file ini di HP Anda, pilih "Gunakan Remote", masukkan PIN:</p>
             <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 mb-6">
                 <span id="pin-display" class="text-6xl font-bold tracking-[0.2em] text-indigo-400">----</span>
             </div>
-            <div class="flex items-center justify-center gap-2 text-sm text-amber-400 animate-pulse">
-                <i class="fa-solid fa-spinner fa-spin"></i> Menunggu HP terhubung...
-            </div>
+            <p class="text-xs text-amber-400 animate-pulse mb-4"><i class="fa-solid fa-spinner fa-spin"></i> Menunggu HP terhubung...</p>
+            <button onclick="startPresentation()" class="text-xs text-slate-500 underline hover:text-white">Mulai tanpa remote (Pakai Keyboard)</button>
         </div>
+    </div>
 
-        <!-- Layar Presentasi (Muncul setelah HP Konek) -->
-        <div id="laptop-presentation" class="hidden w-full h-full max-w-5xl bg-black rounded-2xl shadow-2xl overflow-hidden relative flex flex-col">
-            <!-- Ini adalah Tempat Slide Gambar -->
-            <div id="slide-content" class="flex-1 flex items-center justify-center bg-black slide-enter overflow-hidden">
-                <img id="slide-image" src="" alt="Slide" class="max-w-full max-h-full object-contain">
+    <!-- Area Slide Presentasi Utama -->
+    <div id="screen-presentation" class="hidden flex-1 flex-col bg-slate-950 relative">
+        
+        <!-- MATERI PRESENTASI ANDA ADA DI SINI -->
+        <!-- Cara Edit: Tinggal tambah atau ubah <div class="slide"> di bawah ini -->
+        <div id="slides-container" class="flex-1 w-full h-full relative overflow-hidden">
+            
+            <!-- SLIDE 1 -->
+            <div class="slide active bg-gradient-to-br from-slate-900 to-indigo-900">
+                <i class="fa-brands fa-html5 text-7xl text-orange-500 mb-6"></i>
+                <h1 class="text-6xl font-extrabold text-white mb-6 drop-shadow-lg">Smart HTML Presenter</h1>
+                <p class="text-2xl text-indigo-200 max-w-3xl leading-relaxed">
+                    Sistem presentasi masa depan yang sepenuhnya dibangun di dalam satu file HTML. Tidak perlu PowerPoint, tidak perlu server.
+                </p>
             </div>
-            <div class="bg-slate-900 p-4 flex justify-between items-center border-t border-slate-800 text-slate-300">
-                <div class="font-bold">Slide <span id="slide-number">1</span> / <span id="slide-total">0</span></div>
-                <div class="text-emerald-500 text-sm font-bold"><i class="fa-solid fa-link"></i> Remote Terhubung</div>
+
+            <!-- SLIDE 2 -->
+            <div class="slide bg-slate-900">
+                <h1 class="text-5xl font-bold text-white mb-10 text-emerald-400">Kenapa Menggunakan Ini?</h1>
+                <div class="grid grid-cols-2 gap-8 text-left max-w-4xl">
+                    <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                        <i class="fa-solid fa-bolt text-3xl text-amber-400 mb-4"></i>
+                        <h3 class="text-xl font-bold mb-2">Super Cepat</h3>
+                        <p class="text-slate-400">Langsung jalan di browser apa saja tanpa install aplikasi tambahan.</p>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                        <i class="fa-solid fa-mobile-screen text-3xl text-sky-400 mb-4"></i>
+                        <h3 class="text-xl font-bold mb-2">Remote Terintegrasi</h3>
+                        <p class="text-slate-400">Kontrol dari HP dengan teknologi WebRTC secara realtime.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SLIDE 3 -->
+            <div class="slide bg-gradient-to-tr from-slate-950 to-slate-800">
+                <h1 class="text-6xl font-bold text-white mb-6">Cara Mengedit Slide</h1>
+                <div class="bg-black/50 p-8 rounded-xl font-mono text-left text-lg text-emerald-300 border border-slate-700">
+                    &lt;div class="slide"&gt;<br>
+                    &nbsp;&nbsp;&lt;h1&gt;Judul Slide Anda&lt;/h1&gt;<br>
+                    &nbsp;&nbsp;&lt;p&gt;Isi materi Anda di sini...&lt;/p&gt;<br>
+                    &lt;/div&gt;
+                </div>
+                <p class="mt-8 text-xl text-slate-300">Cukup copy-paste struktur HTML di atas untuk menambah slide baru!</p>
+            </div>
+
+            <!-- SLIDE 4 -->
+            <div class="slide bg-black">
+                <h1 class="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-500 mb-4">
+                    Terima Kasih
+                </h1>
+                <p class="text-2xl text-slate-400">Siap untuk presentasi yang memukau?</p>
+            </div>
+            
+        </div>
+        
+        <!-- Indikator Bawah Slide -->
+        <div class="absolute bottom-0 w-full p-4 flex justify-between items-center bg-gradient-to-t from-black/80 to-transparent pointer-events-none">
+            <div class="text-slate-300 font-medium">Slide <span id="current-slide-num">1</span> / <span id="total-slide-num">0</span></div>
+            <div id="host-connection-status" class="text-emerald-400 text-sm font-bold opacity-0 transition-opacity">
+                <i class="fa-solid fa-link"></i> Remote Terhubung
             </div>
         </div>
     </div>
 
-    <!-- ========================================== -->
-    <!-- TAMPILAN HP (REMOTE KONTROL)               -->
-    <!-- ========================================== -->
+
+    <!-- ================================================== -->
+    <!-- LAYAR REMOTE: INPUT PIN & TOMBOL KONTROL           -->
+    <!-- ================================================== -->
     
     <!-- Input PIN di HP -->
-    <div id="remote-login" class="hidden flex-1 flex-col items-center justify-center p-6">
+    <div id="screen-remote-login" class="hidden flex-1 flex-col items-center justify-center p-6">
         <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center border border-slate-700">
             <h2 class="text-2xl font-bold mb-2">Sambungkan PC</h2>
             <p class="text-slate-400 text-sm mb-6">Masukkan 4 digit PIN yang ada di layar laptop.</p>
             <input type="number" id="pin-input" placeholder="____" class="w-full bg-slate-900 border border-slate-700 text-white text-center text-4xl tracking-[0.5em] font-bold rounded-xl p-4 mb-4 focus:outline-none focus:border-emerald-500 transition-colors" maxlength="4">
-            <button onclick="connectToLaptop()" id="btn-connect" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl btn-press transition-colors shadow-lg shadow-emerald-600/30">
+            <button onclick="connectToHost()" id="btn-connect" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl btn-press transition-colors shadow-lg shadow-emerald-600/30">
                 Hubungkan
             </button>
         </div>
     </div>
 
     <!-- Tombol Remote Kontrol di HP -->
-    <div id="remote-controls" class="hidden flex-1 flex-col p-4 gap-4">
+    <div id="screen-remote-controls" class="hidden flex-1 flex-col p-4 gap-4 bg-slate-950">
+        <div class="flex justify-between items-center px-2 py-2 mb-2 border-b border-slate-800">
+            <span class="text-sm font-bold text-slate-400"><i class="fa-solid fa-circle text-emerald-500 text-[10px] mr-1"></i> Live Remote</span>
+            <button onclick="sendCmd('BLANK')" class="text-xs bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 active:bg-slate-700">Blank Screen</button>
+        </div>
+        
         <div class="flex-1 flex flex-col gap-4">
             <!-- PREVIOUS -->
-            <button onclick="sendRemoteCommand('PREV')" class="flex-1 bg-slate-800 rounded-3xl flex flex-col items-center justify-center btn-press border border-slate-700 active:bg-slate-700 transition-colors group">
+            <button onclick="sendCmd('PREV')" class="flex-1 bg-slate-800 rounded-3xl flex flex-col items-center justify-center btn-press border border-slate-700 active:bg-slate-700 transition-colors group">
                 <i class="fa-solid fa-chevron-up text-5xl text-slate-500 group-active:text-white transition-colors"></i>
-                <span class="text-slate-500 font-bold mt-4 tracking-widest text-lg">SEBELUMNYA</span>
+                <span class="text-slate-500 font-bold mt-4 tracking-widest text-lg">KEMBALI</span>
             </button>
             
             <!-- NEXT -->
-            <button onclick="sendRemoteCommand('NEXT')" class="flex-[1.5] bg-indigo-600 rounded-3xl flex flex-col items-center justify-center btn-press shadow-[0_0_40px_rgba(79,70,229,0.3)] active:bg-indigo-500 transition-colors group border border-indigo-500/50">
-                <span class="text-indigo-200 font-bold mb-4 tracking-widest text-xl">SELANJUTNYA</span>
+            <button onclick="sendCmd('NEXT')" class="flex-[1.5] bg-indigo-600 rounded-3xl flex flex-col items-center justify-center btn-press shadow-[0_0_40px_rgba(79,70,229,0.3)] active:bg-indigo-500 transition-colors group border border-indigo-500/50">
+                <span class="text-indigo-200 font-bold mb-4 tracking-widest text-xl">LANJUT</span>
                 <i class="fa-solid fa-chevron-down text-8xl text-white group-active:translate-y-4 transition-transform"></i>
             </button>
         </div>
     </div>
 
-    <!-- Notifikasi Toast -->
+    <!-- Global Toast Notification -->
     <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-600 px-4 py-2 rounded-full text-sm font-bold shadow-xl transition-opacity duration-300 opacity-0 pointer-events-none z-50">
         Notifikasi
     </div>
 
-    <!-- JAVASCRIPT LOGIC (WebRTC & Presentasi) -->
+    <!-- ================================================== -->
+    <!-- LOGIKA JAVASCRIPT (Sistem Slide & Remote WebRTC)   -->
+    <!-- ================================================== -->
     <script>
-        // Prefix ID untuk PeerJS agar tidak tabrakan secara global
-        const APP_PREFIX = "clickerpro-id-"; 
-        let peer = null;
-        let connection = null;
+        // --- UTILITAS UI ---
+        function showScreen(id) {
+            ['screen-selection', 'screen-host-waiting', 'screen-presentation', 'screen-remote-login', 'screen-remote-controls'].forEach(screen => {
+                document.getElementById(screen).classList.add('hidden');
+                document.getElementById(screen).classList.remove('flex');
+            });
+            document.getElementById(id).classList.remove('hidden');
+            document.getElementById(id).classList.add('flex');
+        }
 
-        // Data Presentasi
-        let slides = [];
-        let currentSlide = 0;
-
-        function handleFileUpload(event) {
-            const files = Array.from(event.target.files);
-            if (files.length === 0) return;
-
-            // Urutkan file berdasarkan nama (misal: 1.jpg, 2.jpg)
-            files.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
-
-            // Ubah file fisik menjadi URL lokal di browser
-            slides = files.map(file => URL.createObjectURL(file));
-            document.getElementById('slide-total').innerText = slides.length;
-            
-            // Lanjut ke layar persiapan (menampilkan PIN)
-            startAsLaptop();
+        function updateStatus(text, colorClass) {
+            const s = document.getElementById('status-badge');
+            s.innerText = text;
+            s.className = `text-xs font-semibold px-3 py-1 rounded-full border ${colorClass}`;
         }
 
         function showToast(msg, isError = false) {
@@ -161,125 +220,128 @@
             setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 3000);
         }
 
-        function updateStatus(text, colorClass) {
-            const s = document.getElementById('status-badge');
-            s.innerText = text;
-            s.className = `text-xs font-semibold px-3 py-1 rounded-full border ${colorClass}`;
+        // --- SISTEM SLIDE HTML Bawaan ---
+        let slides = [];
+        let currentIndex = 0;
+        let isBlank = false;
+
+        function initSlides() {
+            slides = document.querySelectorAll('.slide');
+            document.getElementById('total-slide-num').innerText = slides.length;
+            updateSlideView();
         }
 
-        // =====================================
-        // LOGIKA LAPTOP (RECEIVER)
-        // =====================================
-        function startAsLaptop() {
-            document.getElementById('role-selection').classList.add('hidden');
-            document.getElementById('laptop-view').classList.remove('hidden');
-            document.getElementById('laptop-view').classList.add('flex');
+        function updateSlideView() {
+            slides.forEach((s, idx) => {
+                if(idx === currentIndex) s.classList.add('active');
+                else s.classList.remove('active');
+            });
+            document.getElementById('current-slide-num').innerText = currentIndex + 1;
             
-            // Buat PIN Acak 4 Digit
+            if(isBlank) {
+                document.getElementById('slides-container').style.opacity = "0";
+            } else {
+                document.getElementById('slides-container').style.opacity = "1";
+            }
+        }
+
+        function nextSlide() {
+            if(currentIndex < slides.length - 1) { currentIndex++; updateSlideView(); }
+        }
+        function prevSlide() {
+            if(currentIndex > 0) { currentIndex--; updateSlideView(); }
+        }
+        function toggleBlank() {
+            isBlank = !isBlank; updateSlideView();
+        }
+
+        // Kontrol Keyboard untuk Host (Bisa pakai panah keyboard juga)
+        document.addEventListener('keydown', (e) => {
+            if(document.getElementById('screen-presentation').classList.contains('hidden')) return;
+            if(e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            if(e.key === 'ArrowLeft') prevSlide();
+            if(e.key === 'b' || e.key === 'B') toggleBlank();
+        });
+
+        // --- SISTEM REMOTE KONTROL (PeerJS) ---
+        const APP_PREFIX = "smartslide-v1-"; 
+        let peer = null;
+        let connection = null;
+
+        // 1. HOST MODE (Laptop)
+        function startAsHost() {
+            showScreen('screen-host-waiting');
+            
             const pin = Math.floor(1000 + Math.random() * 9000).toString();
             document.getElementById('pin-display').innerText = pin;
             updateStatus('Menunggu Remote', 'bg-amber-500/20 text-amber-400 border-amber-500/30');
 
-            // Inisiasi PeerJS dengan ID unik berdasarkan PIN
             peer = new Peer(APP_PREFIX + pin);
-
-            peer.on('open', (id) => {
-                console.log('Laptop siap dengan ID:', id);
-            });
-
-            // Ketika HP terhubung
+            
             peer.on('connection', (conn) => {
                 connection = conn;
+                startPresentation(); // Pindah ke layar presentasi
+                document.getElementById('host-connection-status').classList.remove('opacity-0');
+                updateStatus('Remote Konek', 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30');
                 
-                // Ubah Tampilan: Sembunyikan PIN, Tampilkan Slide Presentasi
-                document.getElementById('laptop-waiting').classList.add('hidden');
-                document.getElementById('laptop-presentation').classList.remove('hidden');
-                updateStatus('Remote Terhubung', 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30');
-                
-                renderSlide(); // Tampilkan slide pertama
-
-                // Mendengarkan perintah dari HP
+                // Terima perintah dari HP
                 conn.on('data', (data) => {
-                    console.log("Perintah diterima:", data);
-                    if(data.command === 'NEXT') {
-                        if(currentSlide < slides.length - 1) currentSlide++;
-                        renderSlide();
-                    } else if (data.command === 'PREV') {
-                        if(currentSlide > 0) currentSlide--;
-                        renderSlide();
-                    }
+                    if(data.cmd === 'NEXT') nextSlide();
+                    if(data.cmd === 'PREV') prevSlide();
+                    if(data.cmd === 'BLANK') toggleBlank();
                 });
 
                 conn.on('close', () => {
-                    updateStatus('Remote Terputus', 'bg-rose-500/20 text-rose-400 border-rose-500/30');
-                    document.getElementById('laptop-presentation').classList.add('hidden');
-                    document.getElementById('laptop-waiting').classList.remove('hidden');
+                    document.getElementById('host-connection-status').classList.add('opacity-0');
+                    updateStatus('Remote Putus', 'bg-rose-500/20 text-rose-400 border-rose-500/30');
                 });
             });
         }
 
-        function renderSlide() {
-            const content = document.getElementById('slide-content');
+        function startPresentation() {
+            showScreen('screen-presentation');
+            document.getElementById('navbar').classList.add('hidden'); // Sembunyikan header atas
+            initSlides();
             
-            // Reset animasi
-            content.classList.remove('slide-enter');
-            void content.offsetWidth; // trigger reflow
-            content.classList.add('slide-enter');
-
-            document.getElementById('slide-image').src = slides[currentSlide];
-            document.getElementById('slide-number').innerText = currentSlide + 1;
+            // Coba aktifkan mode Fullscreen browser
+            try {
+                document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen diblokir otomatis oleh browser."));
+            } catch(e){}
         }
 
-        // =====================================
-        // LOGIKA HP (REMOTE KONTROL)
-        // =====================================
+        // 2. REMOTE MODE (HP)
         function startAsRemote() {
-            document.getElementById('role-selection').classList.add('hidden');
-            document.getElementById('remote-login').classList.remove('hidden');
-            document.getElementById('remote-login').classList.add('flex');
+            showScreen('screen-remote-login');
             updateStatus('Mode Remote', 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30');
-            
-            peer = new Peer(); // HP tidak butuh ID spesifik
+            peer = new Peer();
         }
 
-        function connectToLaptop() {
+        function connectToHost() {
             const pin = document.getElementById('pin-input').value;
-            if(pin.length !== 4) {
-                showToast('Masukkan 4 digit PIN!', true);
-                return;
-            }
+            if(pin.length !== 4) return showToast('Masukkan 4 digit PIN', true);
 
             const btn = document.getElementById('btn-connect');
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menghubungkan...';
-            btn.disabled = true;
-
-            // Mencoba konek ke ID Laptop
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading...';
+            
             connection = peer.connect(APP_PREFIX + pin);
 
             connection.on('open', () => {
-                showToast('Berhasil Terhubung!');
+                showToast('Terhubung ke Layar!');
                 updateStatus('Terkoneksi (PIN: '+pin+')', 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30');
-                
-                // Ubah UI HP ke Tombol Remote
-                document.getElementById('remote-login').classList.add('hidden');
-                document.getElementById('remote-login').classList.remove('flex');
-                document.getElementById('remote-controls').classList.remove('hidden');
-                document.getElementById('remote-controls').classList.add('flex');
+                document.getElementById('navbar').classList.add('hidden'); // Biar remote lega
+                showScreen('screen-remote-controls');
             });
 
             connection.on('error', (err) => {
-                showToast('Koneksi Gagal. Cek PIN.', true);
+                showToast('Gagal konek, cek PIN', true);
                 btn.innerHTML = 'Hubungkan';
-                btn.disabled = false;
             });
         }
 
-        function sendRemoteCommand(action) {
+        function sendCmd(action) {
             if (connection && connection.open) {
-                connection.send({ command: action });
-                
-                // Efek getar di HP
-                if (navigator.vibrate) navigator.vibrate(50);
+                connection.send({ cmd: action });
+                if (navigator.vibrate) navigator.vibrate(50); // HP Getar sedikit
             } else {
                 showToast('Koneksi terputus!', true);
             }
