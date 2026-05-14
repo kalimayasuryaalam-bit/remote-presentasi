@@ -116,6 +116,9 @@ Tanyakan apakah mereka ada keluhan atau hal spesifik yang ingin didiskusikan leb
         <div id="customer-slide-content" class="slide-content text-center w-full max-w-4xl">
             <!-- Teks diinjeksi via JS -->
         </div>
+
+        <!-- Laser Pointer / Virtual Mouse (Ditambahkan) -->
+        <div id="laser-pointer" class="w-5 h-5 bg-red-500 rounded-full absolute hidden transition-transform duration-75" style="box-shadow: 0 0 15px 5px rgba(239, 68, 68, 0.6); pointer-events: none; z-index: 9999; transform: translate(-50%, -50%);"></div>
     </div>
 
     <!-- ==========================================
@@ -146,6 +149,9 @@ Tanyakan apakah mereka ada keluhan atau hal spesifik yang ingin didiskusikan leb
         <div class="bg-gray-900 border-b border-gray-800 p-4 flex justify-between items-center z-20">
             <div class="text-sm text-gray-400">Slide: <span id="client-slide-num" class="text-white font-bold text-lg">1</span> / <span id="client-slide-total">1</span></div>
             <div class="flex items-center gap-4">
+                <button onclick="togglePointer()" id="client-pointer-btn" class="text-red-400 hover:text-red-300 flex items-center gap-1 font-semibold bg-gray-800 px-3 py-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg> Laser
+                </button>
                 <button onclick="toggleScroll()" id="client-play-btn" class="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-semibold bg-gray-800 px-3 py-1 rounded-lg">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg> Scroll
                 </button>
@@ -180,6 +186,25 @@ Tanyakan apakah mereka ada keluhan atau hal spesifik yang ingin didiskusikan leb
                 <input type="range" id="client-speed" min="0.5" max="5" step="0.5" value="2" class="flex-1 accent-blue-500">
                 <span class="text-xs text-gray-500">Cepat</span>
             </div>
+        </div>
+
+        <!-- Touchpad Overlay (Layar Sentuh untuk Laser Pointer) -->
+        <div id="client-touchpad-overlay" class="fixed inset-0 z-[60] bg-gray-900/95 backdrop-blur-sm hidden flex-col items-center pt-20">
+            <h3 class="text-red-500 font-bold text-2xl mb-2 animate-pulse flex items-center gap-2">
+                <span class="w-3 h-3 bg-red-500 rounded-full"></span> Laser Aktif
+            </h3>
+            <p class="text-gray-400 text-center px-6 mb-8 text-sm">Geser jari Anda di layar ini untuk menggerakkan laser merah di layar presentasi (Laptop).</p>
+            
+            <div id="touchpad-area" class="flex-1 w-full bg-gray-800/50 border-t border-gray-700 touch-none flex items-center justify-center relative overflow-hidden">
+                <div class="text-gray-600 flex flex-col items-center pointer-events-none">
+                    <svg class="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2z"></path></svg>
+                    <span>Area Touchpad</span>
+                </div>
+            </div>
+
+            <button onclick="togglePointer()" class="absolute bottom-10 bg-red-600 hover:bg-red-500 text-white font-bold py-4 px-12 rounded-full shadow-lg shadow-red-600/30">
+                Tutup Laser
+            </button>
         </div>
     </div>
 
@@ -295,6 +320,17 @@ Tanyakan apakah mereka ada keluhan atau hal spesifik yang ingin didiskusikan leb
                 // Menerima perintah dari HP
                 if (data.type === 'CHANGE_SLIDE') {
                     renderHostSlide(data.index);
+                } else if (data.type === 'POINTER_TOGGLE') {
+                    const laser = document.getElementById('laser-pointer');
+                    if (data.active) laser.classList.remove('hidden');
+                    else laser.classList.add('hidden');
+                } else if (data.type === 'POINTER_MOVE') {
+                    const laser = document.getElementById('laser-pointer');
+                    // data.x dan data.y adalah persentase (0 sampai 1)
+                    const posX = data.x * window.innerWidth;
+                    const posY = data.y * window.innerHeight;
+                    laser.style.left = posX + 'px';
+                    laser.style.top = posY + 'px';
                 }
             });
         }
@@ -420,6 +456,57 @@ Tanyakan apakah mereka ada keluhan atau hal spesifik yang ingin didiskusikan leb
         document.getElementById('client-scroll-container').addEventListener('touchstart', () => {
             if (isScrolling) toggleScroll();
         }, {passive: true});
+
+        // --- Logika Laser Pointer (Virtual Mouse) ---
+        let isPointerActive = false;
+        const touchpadOverlay = document.getElementById('client-touchpad-overlay');
+        const touchpadArea = document.getElementById('touchpad-area');
+
+        function togglePointer() {
+            isPointerActive = !isPointerActive;
+            if (isPointerActive) {
+                // Tampilkan layar touchpad
+                touchpadOverlay.classList.remove('hidden');
+                touchpadOverlay.classList.add('flex');
+                if (isScrolling) toggleScroll(); // Pause teleprompter otomatis jika sedang jalan
+                
+                if (connection && connection.open) {
+                    connection.send({ type: 'POINTER_TOGGLE', active: true });
+                }
+            } else {
+                // Sembunyikan layar touchpad
+                touchpadOverlay.classList.add('hidden');
+                touchpadOverlay.classList.remove('flex');
+                
+                if (connection && connection.open) {
+                    connection.send({ type: 'POINTER_TOGGLE', active: false });
+                }
+            }
+        }
+
+        // Tangkap pergerakan jari di Touchpad
+        touchpadArea.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Mencegah scroll HP bawaan (Pull to refresh, dll)
+            if (!isPointerActive || !connection || !connection.open) return;
+            
+            const touch = e.touches[0];
+            const rect = touchpadArea.getBoundingClientRect();
+            
+            // Hitung posisi relatif jari di dalam area touchpad (nilai 0.0 sampai 1.0)
+            let xPos = (touch.clientX - rect.left) / rect.width;
+            let yPos = (touch.clientY - rect.top) / rect.height;
+            
+            // Batasi agar mentok di tepian
+            xPos = Math.max(0, Math.min(1, xPos));
+            yPos = Math.max(0, Math.min(1, yPos));
+
+            // Kirim koordinat ke Laptop
+            connection.send({
+                type: 'POINTER_MOVE',
+                x: xPos,
+                y: yPos
+            });
+        }, {passive: false});
 
 
         // ==========================================
