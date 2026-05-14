@@ -2,372 +2,442 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Live Remote Presentasi</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Presenter & Teleprompter</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Library untuk komunikasi antar perangkat (P2P) -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- Library untuk membuat QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { overscroll-behavior-y: contain; }
-        #trackpad { touch-action: none; }
-        .slide { display: none; animation: fadeIn 0.4s ease-out; }
-        .slide.active { display: flex; }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.98); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        #virtual-cursor {
-            box-shadow: 0 0 15px 4px rgba(239, 68, 68, 0.6);
-            transition: transform 0.1s linear, left 0.05s linear, top 0.05s linear;
-        }
-        .view-section { display: none; }
-        .view-section.active { display: flex; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .smooth-transition { transition: all 0.3s ease; }
+        
+        /* Format text untuk slide customer */
+        .slide-content h1 { font-size: 3rem; font-weight: bold; margin-bottom: 1rem; color: #60A5FA; }
+        .slide-content h2 { font-size: 2rem; font-weight: 600; margin-bottom: 0.75rem; }
+        .slide-content p { font-size: 1.5rem; line-height: 1.6; margin-bottom: 1rem; }
+        .slide-content ul { list-style-type: disc; margin-left: 2rem; font-size: 1.5rem; text-align: left; display: inline-block; }
     </style>
 </head>
-<body class="bg-gray-100 h-screen w-screen overflow-hidden text-gray-800 font-sans relative">
-
-    <!-- Tempat memunculkan pesan error jika ada masalah -->
-    <div id="error-box" class="absolute top-0 left-0 w-full bg-red-600 text-white text-center py-2 text-sm z-[9999] hidden"></div>
+<body class="bg-gray-900 text-white font-sans min-h-screen overflow-hidden">
 
     <!-- ==========================================
-         VIEW 1: PILIH PERAN (LOBBY)
-         ========================================== -->
-    <div id="view-lobby" class="view-section active flex-col items-center justify-center h-full w-full bg-slate-900 text-white p-6">
-        <div class="max-w-md w-full bg-slate-800 p-8 rounded-3xl shadow-2xl text-center border border-slate-700">
-            <i class="fas fa-network-wired text-5xl text-blue-500 mb-4"></i>
-            <h1 class="text-3xl font-bold mb-2">Sistem Presentasi</h1>
-            <p class="text-slate-400 mb-8 text-sm">Hubungkan HP dan Laptop Anda secara real-time.</p>
-            
-            <div id="loading-auth" class="text-blue-400 mb-4 font-medium">
-                <i class="fas fa-spinner fa-spin mr-2"></i> Menghubungkan ke Cloud...
-            </div>
+         VIEW 1: MENU UTAMA (Pilih Perangkat)
+    =========================================== -->
+    <div id="view-home" class="min-h-screen flex flex-col items-center justify-center p-6 hidden">
+        <h1 class="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500 text-center">Smart Presenter</h1>
+        <p class="text-gray-400 text-center max-w-md mb-10">Satu aplikasi, dua layar. Hubungkan Laptop dan HP Anda tanpa kabel.</p>
+        
+        <div class="flex flex-col md:flex-row gap-6 w-full max-w-2xl">
+            <!-- Tombol Laptop -->
+            <button onclick="showView('view-host-setup')" class="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-2xl p-8 flex flex-col items-center smooth-transition transform hover:scale-105 shadow-xl">
+                <svg class="w-16 h-16 text-blue-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                <h2 class="text-2xl font-bold mb-2">Saya di Laptop</h2>
+                <p class="text-gray-400 text-sm text-center">Buat presentasi dan tampilkan ke customer.</p>
+            </button>
 
-            <div id="role-buttons" class="space-y-4 hidden">
-                <button onclick="startAsLaptop()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-medium transition flex items-center justify-center gap-3">
-                    <i class="fas fa-laptop text-xl"></i> Buka sebagai Layar Laptop
+            <!-- Tombol HP -->
+            <button onclick="showView('view-client-manual')" class="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-2xl p-8 flex flex-col items-center smooth-transition transform hover:scale-105 shadow-xl">
+                <svg class="w-16 h-16 text-purple-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                <h2 class="text-2xl font-bold mb-2">Saya di HP</h2>
+                <p class="text-gray-400 text-sm text-center">Masuk sebagai remote control & teleprompter.</p>
+            </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         VIEW 2: HOST SETUP (Bikin Materi di Laptop)
+    =========================================== -->
+    <div id="view-host-setup" class="min-h-screen flex flex-col p-6 max-w-5xl mx-auto hidden">
+        <button onclick="showView('view-home')" class="text-gray-400 hover:text-white mb-6 flex items-center gap-2 self-start">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg> Kembali
+        </button>
+
+        <h2 class="text-3xl font-bold mb-2">Siapkan Materi Presentasi</h2>
+        <p class="text-gray-400 mb-6">Pisahkan setiap Slide dengan <code>====</code> dan pisahkan teks layar dengan catatan (contekan) menggunakan <code>----</code>.</p>
+
+        <textarea id="script-input" class="flex-1 w-full p-4 bg-gray-800 text-gray-100 border border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none mb-6 min-h-[400px] text-lg font-mono">
+# PT Inovasi Sukses
+Solusi Digital Terbaik Anda
+----
+Halo Bapak/Ibu! 
+Terima kasih atas waktunya hari ini.
+Saya akan mempresentasikan solusi dari PT Inovasi Sukses untuk bisnis Anda.
+====
+# Mengapa Memilih Kami?
+<ul>
+  <li>Cepat & Efisien</li>
+  <li>Keamanan Terjamin</li>
+  <li>Dukungan 24/7</li>
+</ul>
+----
+Seperti yang Bapak/Ibu lihat di layar, kami memiliki 3 pilar utama.
+Pertama, kecepatan. Kedua, keamanan. Dan yang paling penting adalah dukungan 24 jam.
+
+(Tersenyum dan tatap mata customer)
+====
+# Mari Mulai Kerjasama!
+Ada pertanyaan sejauh ini?
+----
+Baik, presentasi selesai.
+Tanyakan apakah mereka ada keluhan atau hal spesifik yang ingin didiskusikan lebih lanjut.</textarea>
+
+        <button onclick="startHost()" class="bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl text-xl font-bold shadow-lg transform transition active:scale-95 w-full">
+            Mulai Sesi Presentasi
+        </button>
+    </div>
+
+    <!-- ==========================================
+         VIEW 3: HOST WAITING (Tampilkan QR Code di Laptop)
+    =========================================== -->
+    <div id="view-host-waiting" class="min-h-screen flex flex-col items-center justify-center p-6 hidden">
+        <h2 class="text-3xl font-bold mb-2">Scan untuk Menghubungkan HP</h2>
+        <p class="text-gray-400 mb-8 text-center max-w-md">Buka kamera HP Anda dan scan QR Code ini. HP Anda otomatis akan menjadi Remote & Teleprompter.</p>
+        
+        <div class="bg-white p-4 rounded-2xl shadow-2xl mb-8">
+            <div id="qrcode"></div>
+        </div>
+
+        <p class="text-gray-500 mb-2">Atau masukkan kode ini secara manual di HP:</p>
+        <div id="room-code-display" class="text-4xl font-mono font-bold tracking-widest text-blue-400 bg-gray-800 py-3 px-6 rounded-xl border border-gray-700">----</div>
+    </div>
+
+    <!-- ==========================================
+         VIEW 4: HOST SLIDE (Dilihat oleh Customer di Laptop)
+    =========================================== -->
+    <div id="view-host-slide" class="min-h-screen flex flex-col items-center justify-center p-12 hidden relative bg-gray-900">
+        <div class="absolute top-4 right-4 text-xs text-gray-600 flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span> Terhubung dengan HP
+        </div>
+        
+        <!-- Area Konten Slide -->
+        <div id="customer-slide-content" class="slide-content text-center w-full max-w-4xl">
+            <!-- Teks diinjeksi via JS -->
+        </div>
+    </div>
+
+    <!-- ==========================================
+         VIEW 5: CLIENT MANUAL JOIN (Jika tidak pakai QR)
+    =========================================== -->
+    <div id="view-client-manual" class="min-h-screen flex flex-col items-center justify-center p-6 hidden">
+        <button onclick="showView('view-home')" class="absolute top-6 left-6 text-gray-400 hover:text-white flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        </button>
+
+        <h2 class="text-3xl font-bold mb-2">Masuk ke Room</h2>
+        <p class="text-gray-400 mb-8 text-center">Masukkan kode yang tampil di layar laptop.</p>
+        
+        <input type="text" id="join-room-input" class="bg-gray-800 border border-gray-700 text-white text-center text-3xl font-mono font-bold rounded-xl py-4 px-6 mb-6 w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-purple-500 uppercase" placeholder="KODE ROOM">
+        
+        <button onclick="joinRoom()" class="bg-purple-600 hover:bg-purple-500 text-white py-4 px-12 rounded-xl text-xl font-bold shadow-lg transform transition active:scale-95 w-full max-w-sm">
+            Hubungkan HP
+        </button>
+        <p id="join-status" class="mt-4 text-yellow-400 hidden"></p>
+    </div>
+
+    <!-- ==========================================
+         VIEW 6: CLIENT PROMPTER (Layar HP Presenter)
+    =========================================== -->
+    <div id="view-client-prompter" class="h-screen w-screen flex flex-col hidden bg-black">
+        
+        <!-- Header Info -->
+        <div class="bg-gray-900 border-b border-gray-800 p-4 flex justify-between items-center z-20">
+            <div class="text-sm text-gray-400">Slide: <span id="client-slide-num" class="text-white font-bold text-lg">1</span> / <span id="client-slide-total">1</span></div>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleScroll()" id="client-play-btn" class="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-semibold bg-gray-800 px-3 py-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg> Scroll
                 </button>
-                <div class="relative flex py-2 items-center">
-                    <div class="flex-grow border-t border-slate-600"></div>
-                    <span class="flex-shrink-0 mx-4 text-slate-500 text-sm">ATAU</span>
-                    <div class="flex-grow border-t border-slate-600"></div>
+            </div>
+        </div>
+
+        <!-- Teleprompter Area -->
+        <div id="client-scroll-container" class="flex-1 overflow-y-auto no-scrollbar relative w-full p-6 pb-32">
+            <div class="h-[20vh]"></div>
+            <div id="client-notes-content" class="text-white text-3xl leading-relaxed whitespace-pre-wrap font-semibold text-center w-full max-w-2xl mx-auto">
+                <!-- Notes diinjeksi via JS -->
+            </div>
+            <div class="h-[50vh]"></div>
+        </div>
+
+        <!-- Floating Controls (Navigasi Slide) -->
+        <div class="fixed bottom-0 left-0 w-full bg-gradient-to-t from-gray-900 via-gray-900 to-transparent pt-12 pb-6 px-4 z-20">
+            <div class="flex justify-between items-center max-w-md mx-auto gap-4">
+                <button onclick="changeSlide(-1)" class="flex-1 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white py-4 rounded-2xl font-bold flex justify-center items-center gap-2 shadow-lg border border-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> Prev
+                </button>
+                <div class="flex flex-col items-center justify-center bg-gray-800 rounded-full w-14 h-14 border border-gray-700 shadow-lg">
+                    <span id="scroll-speed-display" class="text-lg font-bold text-blue-400">2</span>
                 </div>
-                <button onclick="startAsPhone()" class="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-xl font-medium transition flex items-center justify-center gap-3">
-                    <i class="fas fa-mobile-alt text-xl"></i> Buka sebagai Remote HP
+                <button onclick="changeSlide(1)" class="flex-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white py-4 rounded-2xl font-bold flex justify-center items-center gap-2 shadow-lg">
+                    Next <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                 </button>
+            </div>
+            <!-- Pengatur Kecepatan Scroll Tersembunyi -->
+            <div class="max-w-md mx-auto mt-4 px-2 flex items-center gap-3">
+                <span class="text-xs text-gray-500">Pelan</span>
+                <input type="range" id="client-speed" min="0.5" max="5" step="0.5" value="2" class="flex-1 accent-blue-500">
+                <span class="text-xs text-gray-500">Cepat</span>
             </div>
         </div>
     </div>
 
     <!-- ==========================================
-         VIEW 2: TAMPILAN LAPTOP (HOST)
-         ========================================== -->
-    <div id="view-laptop" class="view-section flex-col h-full w-full bg-white relative">
-        <div class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center gap-4 border border-slate-700">
-            <span class="text-sm text-slate-300">Masukkan PIN ini di HP:</span>
-            <span id="display-pin" class="text-2xl font-mono font-bold tracking-widest text-teal-400">----</span>
-            <div id="status-indicator" class="w-3 h-3 rounded-full bg-yellow-500 animate-pulse ml-2"></div>
-        </div>
+         LOGIKA APLIKASI JAVASCRIPT
+    =========================================== -->
+    <script>
+        // Data Presentasi
+        let presentationSlides = [];
+        let currentSlideIndex = 0;
 
-        <div id="virtual-cursor" class="w-5 h-5 bg-red-500 rounded-full absolute top-1/2 left-1/2 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 z-50 shadow-xl border-2 border-white"></div>
+        // PeerJS Setup
+        let peer = null;
+        let connection = null;
+        let isHost = false;
 
-        <div id="slide-container" class="flex-1 relative w-full h-full">
-            <div class="slide active flex-col items-center justify-center h-full w-full bg-gradient-to-br from-slate-50 to-indigo-50 text-center p-12">
-                <div class="w-24 h-24 bg-indigo-600 rounded-2xl mb-8 flex items-center justify-center shadow-xl shadow-indigo-200">
-                    <i class="fas fa-chart-pie text-white text-5xl"></i>
-                </div>
-                <h1 class="text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Q3 Business Plan</h1>
-                <p class="text-2xl text-slate-600 max-w-2xl">Strategi ekspansi layanan personal dan B2B.</p>
-            </div>
-            
-            <div class="slide flex-col items-start justify-center h-full w-full bg-white p-20">
-                <h2 class="text-5xl font-bold text-slate-800 mb-12 border-l-8 border-indigo-600 pl-6">Roadmap Ekspansi</h2>
-                <div class="grid grid-cols-2 gap-10 w-full max-w-5xl mx-auto">
-                    <div class="bg-indigo-50 p-8 rounded-2xl border border-indigo-100">
-                        <i class="fas fa-rocket text-3xl text-indigo-500 mb-4"></i>
-                        <h3 class="font-bold text-2xl mb-4 text-indigo-900">Fase 1: Konsolidasi</h3>
-                        <p class="text-slate-600 text-lg">Memperkuat tim internal dan mengoptimalkan SOP layanan.</p>
-                    </div>
-                    <div class="bg-teal-50 p-8 rounded-2xl border border-teal-100">
-                        <i class="fas fa-users text-3xl text-teal-500 mb-4"></i>
-                        <h3 class="font-bold text-2xl mb-4 text-teal-900">Fase 2: Akuisisi</h3>
-                        <p class="text-slate-600 text-lg">Menargetkan klien baru melalui presentasi langsung.</p>
-                    </div>
-                </div>
-            </div>
+        // Scroller Teleprompter
+        let isScrolling = false;
+        let scrollSpeed = 2;
+        let scrollFrame;
+        let exactScrollY = 0;
 
-            <div class="slide flex-col items-center justify-center h-full w-full bg-slate-900 text-white p-12 text-center">
-                <i class="fas fa-check-circle text-7xl text-teal-400 mb-8"></i>
-                <h2 class="text-6xl font-bold mb-6">Sesi Diskusi</h2>
-                <p class="text-2xl text-slate-400 max-w-3xl">Gunakan kursor merah dari HP Anda untuk menunjuk data.</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==========================================
-         VIEW 3: TAMPILAN HP (REMOTE)
-         ========================================== -->
-    <div id="view-phone" class="view-section flex-col h-full w-full bg-slate-900">
-        <div id="pin-modal" class="absolute inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6">
-            <div class="bg-slate-800 p-8 rounded-3xl w-full max-w-sm text-center border border-slate-700 shadow-2xl">
-                <i class="fas fa-keyboard text-4xl text-teal-400 mb-4"></i>
-                <h3 class="text-2xl font-bold text-white mb-2">Masukkan PIN</h3>
-                <p class="text-slate-400 text-sm mb-6">Lihat PIN yang ada di layar laptop</p>
-                <input type="text" id="input-pin" maxlength="4" class="w-full bg-slate-900 border-2 border-slate-600 text-white text-center text-4xl py-4 rounded-xl font-mono tracking-widest mb-6 focus:outline-none focus:border-teal-500 uppercase transition" placeholder="----" autocomplete="off">
-                <button onclick="connectToLaptop()" class="w-full bg-teal-600 hover:bg-teal-500 text-white py-4 rounded-xl font-bold text-lg transition">
-                    Hubungkan
-                </button>
-            </div>
-        </div>
-
-        <div class="flex flex-col h-full w-full pb-6 pt-2 px-4 gap-4">
-            <div class="text-center py-2">
-                <span id="remote-status" class="text-teal-400 text-sm font-medium"><i class="fas fa-circle text-[10px] animate-pulse"></i> Mengontrol Laptop...</span>
-            </div>
-
-            <div id="trackpad" class="flex-1 bg-slate-800 rounded-3xl border-2 border-slate-700 flex flex-col items-center justify-center relative overflow-hidden active:bg-slate-750 transition-colors shadow-inner">
-                <i class="fas fa-arrows-alt text-slate-600 text-5xl mb-4 pointer-events-none"></i>
-                <p class="text-slate-500 font-medium pointer-events-none text-center">Area Trackpad<br><span class="text-sm font-normal text-slate-600">Geser untuk menggerakkan kursor</span></p>
-                <div id="click-feedback" class="absolute w-16 h-16 bg-white/10 rounded-full scale-0 pointer-events-none transition-transform duration-200 origin-center"></div>
-            </div>
-
-            <div class="flex gap-4 h-24">
-                <button onclick="changeSlide(-1)" class="flex-1 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg border border-slate-600 transition-all">
-                    <i class="fas fa-chevron-left text-2xl text-slate-300"></i>
-                    <span class="text-sm font-medium">Prev</span>
-                </button>
-                <button onclick="changeSlide(1)" class="flex-[2] bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-2xl flex flex-col items-center justify-center gap-1 shadow-lg border border-indigo-500 transition-all">
-                    <span class="text-sm font-medium text-indigo-200">Selanjutnya</span>
-                    <i class="fas fa-chevron-right text-2xl"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==========================================
-         FIREBASE & LOGIKA APLIKASI
-         ========================================== -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Konfigurasi Milikmu (Sudah dimasukkan)
-        const firebaseConfig = {
-            apiKey: "AIzaSyCQ9wg4ezcqMgrSkL91wOVcx6JHN6PiUMU",
-            authDomain: "remote-fd0d8.firebaseapp.com",
-            projectId: "remote-fd0d8",
-            storageBucket: "remote-fd0d8.firebasestorage.app",
-            messagingSenderId: "874778621556",
-            appId: "1:874778621556:web:fd08b81614a9e0ca8f8321",
-            measurementId: "G-PYKSJ7Z6G2"
-        };
-
-        // Fungsi Tampilkan Error
-        function showError(msg) {
-            const errBox = document.getElementById('error-box');
-            errBox.innerText = msg;
-            errBox.classList.remove('hidden');
-            console.error("APP ERROR:", msg);
+        // Referensi DOM
+        const views = ['view-home', 'view-host-setup', 'view-host-waiting', 'view-host-slide', 'view-client-manual', 'view-client-prompter'];
+        
+        function showView(viewId) {
+            views.forEach(v => document.getElementById(v).classList.add('hidden'));
+            document.getElementById(viewId).classList.remove('hidden');
         }
 
-        // Inisialisasi Firebase dengan deteksi error
-        let app, auth, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } catch(e) {
-            showError("Gagal memuat Firebase: " + e.message);
+        // Generate Random ID (Biar gampang diketik kalau QR ga bisa)
+        function generateShortID() {
+            return Math.random().toString(36).substring(2, 6).toUpperCase();
         }
 
-        let currentUser = null;
-        let roomPIN = "";
+        // --- FUNGSI PARSING NASKAH ---
+        function parseScriptText(text) {
+            const rawSlides = text.split('====');
+            return rawSlides.map(slideText => {
+                const parts = slideText.split('----');
+                
+                // Konversi markdown sederhana ( # menjadi <h1> )
+                let custText = parts[0] ? parts[0].trim() : '';
+                custText = custText.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+                custText = custText.replace(/\n/g, '<br>');
 
-        async function initAuth() {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
-                document.getElementById('loading-auth').innerHTML = `<span class="text-red-500"><i class="fas fa-exclamation-triangle"></i> Gagal Login: ${error.message}</span>`;
-                showError("Pastikan 'Anonymous Auth' sudah diaktifkan di Firebase Console!");
+                return {
+                    customerText: custText,
+                    prompterText: parts[1] ? parts[1].trim() : (parts[0] ? parts[0].trim() : '(Tidak ada catatan)')
+                };
+            });
+        }
+
+        // ==========================================
+        // LOGIKA HOST (LAPTOP)
+        // ==========================================
+        function startHost() {
+            const scriptRaw = document.getElementById('script-input').value;
+            presentationSlides = parseScriptText(scriptRaw);
+            
+            showView('view-host-waiting');
+            isHost = true;
+
+            const roomID = generateShortID();
+            document.getElementById('room-code-display').innerText = roomID;
+
+            // Inisialisasi P2P Connection
+            peer = new Peer('smart-prompter-' + roomID);
+
+            peer.on('open', function(id) {
+                // Buat Link untuk HP
+                const currentUrl = window.location.href.split('?')[0];
+                const joinUrl = `${currentUrl}?room=${roomID}`;
+                
+                // Buat QR Code
+                document.getElementById('qrcode').innerHTML = "";
+                new QRCode(document.getElementById('qrcode'), {
+                    text: joinUrl,
+                    width: 256,
+                    height: 256,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            });
+
+            peer.on('connection', function(conn) {
+                connection = conn;
+                setupHostConnection();
+            });
+
+            peer.on('error', function(err) {
+                alert('Koneksi Error: ' + err.type);
+            });
+        }
+
+        function setupHostConnection() {
+            connection.on('open', function() {
+                // Saat HP terkoneksi, pindah ke Layar Presentasi (Customer View)
+                showView('view-host-slide');
+                
+                // Kirim data slide ke HP
+                connection.send({
+                    type: 'INIT_SLIDES',
+                    slides: presentationSlides
+                });
+
+                // Tampilkan slide pertama di Laptop
+                renderHostSlide(0);
+            });
+
+            connection.on('data', function(data) {
+                // Menerima perintah dari HP
+                if (data.type === 'CHANGE_SLIDE') {
+                    renderHostSlide(data.index);
+                }
+            });
+        }
+
+        function renderHostSlide(index) {
+            if (index < 0 || index >= presentationSlides.length) return;
+            currentSlideIndex = index;
+            document.getElementById('customer-slide-content').innerHTML = presentationSlides[index].customerText;
+        }
+
+        // ==========================================
+        // LOGIKA CLIENT / REMOTE (HP)
+        // ==========================================
+        function joinRoom(roomCodeParam = null) {
+            const roomID = roomCodeParam || document.getElementById('join-room-input').value.trim().toUpperCase();
+            if (!roomID) return;
+
+            const statusEl = document.getElementById('join-status');
+            statusEl.innerText = "Menghubungkan ke Laptop...";
+            statusEl.classList.remove('hidden');
+
+            peer = new Peer(); // Client ID bebas
+
+            peer.on('open', function(id) {
+                // Koneksi ke Host
+                connection = peer.connect('smart-prompter-' + roomID);
+                
+                connection.on('open', function() {
+                    statusEl.innerText = "Terhubung!";
+                    setupClientConnection();
+                });
+
+                connection.on('error', function() {
+                    statusEl.innerText = "Gagal terhubung. Pastikan kode benar.";
+                });
+            });
+
+            peer.on('error', function(err) {
+                statusEl.innerText = "Error: " + err.type;
+            });
+        }
+
+        function setupClientConnection() {
+            connection.on('data', function(data) {
+                // Menerima materi dari Host (Laptop)
+                if (data.type === 'INIT_SLIDES') {
+                    presentationSlides = data.slides;
+                    document.getElementById('client-slide-total').innerText = presentationSlides.length;
+                    showView('view-client-prompter');
+                    renderClientSlide(0);
+                }
+            });
+        }
+
+        function renderClientSlide(index) {
+            if (index < 0 || index >= presentationSlides.length) return;
+            currentSlideIndex = index;
+            
+            // Update UI HP
+            document.getElementById('client-slide-num').innerText = index + 1;
+            document.getElementById('client-notes-content').innerText = presentationSlides[index].prompterText;
+            
+            // Reset Scroll Teleprompter setiap ganti slide
+            const scrollContainer = document.getElementById('client-scroll-container');
+            scrollContainer.scrollTop = 0;
+            exactScrollY = 0;
+            if (isScrolling) toggleScroll(); // Pause otomatis saat ganti slide
+        }
+
+        function changeSlide(direction) {
+            const newIndex = currentSlideIndex + direction;
+            if (newIndex >= 0 && newIndex < presentationSlides.length) {
+                renderClientSlide(newIndex);
+                
+                // Beritahu Laptop untuk ganti slide juga
+                if (connection && connection.open) {
+                    connection.send({
+                        type: 'CHANGE_SLIDE',
+                        index: newIndex
+                    });
+                }
             }
         }
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('loading-auth').classList.add('hidden');
-                document.getElementById('role-buttons').classList.remove('hidden');
-            }
+        // --- Logika Teleprompter Scroll di HP ---
+        const speedInput = document.getElementById('client-speed');
+        const speedDisplay = document.getElementById('scroll-speed-display');
+        
+        speedInput.addEventListener('input', (e) => {
+            scrollSpeed = parseFloat(e.target.value);
+            speedDisplay.innerText = scrollSpeed;
         });
 
-        // Jalankan
-        if(auth) initAuth();
+        function scrollLoop() {
+            if (isScrolling) {
+                const container = document.getElementById('client-scroll-container');
+                exactScrollY += scrollSpeed;
+                container.scrollTop = exactScrollY;
 
-        function switchView(viewId) {
-            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-            document.getElementById(viewId).classList.add('active');
-        }
-
-        // ==========================================
-        // LOGIKA LAPTOP (HOST)
-        // ==========================================
-        window.startAsLaptop = async () => {
-            if (!currentUser) return;
-            
-            // Generate 4 digit PIN
-            roomPIN = Math.floor(1000 + Math.random() * 9000).toString();
-            document.getElementById('display-pin').innerText = roomPIN;
-            
-            switchView('view-laptop');
-
-            // Gunakan collection 'rooms' di Firestore kamu
-            const roomRef = doc(db, 'rooms', roomPIN);
-            
-            try {
-                await setDoc(roomRef, {
-                    x: 0.5,
-                    y: 0.5,
-                    slideIndex: 0,
-                    isClicking: false
-                });
-            } catch (error) {
-                showError("Gagal membuat room. Cek aturan Firestore (Rules) kamu!");
-                return;
+                // Sync jika user scroll manual dengan jari
+                if (Math.abs(container.scrollTop - exactScrollY) > scrollSpeed + 2) {
+                    exactScrollY = container.scrollTop;
+                }
+                scrollFrame = requestAnimationFrame(scrollLoop);
             }
-
-            const cursor = document.getElementById('virtual-cursor');
-            const slides = document.querySelectorAll('.slide');
-            const statusIndicator = document.getElementById('status-indicator');
-
-            onSnapshot(roomRef, (snapshot) => {
-                if (snapshot.exists()) {
-                    const data = snapshot.data();
-                    
-                    statusIndicator.classList.remove('bg-yellow-500');
-                    statusIndicator.classList.add('bg-green-500');
-
-                    const screenW = document.getElementById('view-laptop').clientWidth;
-                    const screenH = document.getElementById('view-laptop').clientHeight;
-                    
-                    cursor.style.left = (data.x * screenW) + 'px';
-                    cursor.style.top = (data.y * screenH) + 'px';
-
-                    if (data.isClicking) {
-                        cursor.style.transform = 'translate(-50%, -50%) scale(1.8)';
-                        cursor.style.backgroundColor = '#fbbf24'; 
-                    } else {
-                        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
-                        cursor.style.backgroundColor = '#ef4444'; 
-                    }
-
-                    slides.forEach(s => s.classList.remove('active'));
-                    if (slides[data.slideIndex]) {
-                        slides[data.slideIndex].classList.add('active');
-                    }
-                }
-            }, (error) => {
-                showError("Koneksi terputus dari database.");
-            });
-        };
-
-        // ==========================================
-        // LOGIKA HP (REMOTE)
-        // ==========================================
-        window.startAsPhone = () => {
-            if (!currentUser) return;
-            switchView('view-phone');
-        };
-
-        let currentSlideIndex = 0;
-        let localX = 0.5; 
-        let localY = 0.5;
-
-        window.connectToLaptop = async () => {
-            const input = document.getElementById('input-pin').value.trim();
-            if (input.length !== 4) return;
-            
-            roomPIN = input;
-            const roomRef = doc(db, 'rooms', roomPIN);
-            
-            document.getElementById('pin-modal').classList.add('hidden');
-
-            onSnapshot(roomRef, (snapshot) => {
-                if (snapshot.exists()) {
-                    currentSlideIndex = snapshot.data().slideIndex;
-                }
-            });
-
-            setupTrackpad(roomRef);
-        };
-
-        window.changeSlide = async (direction) => {
-            if (!roomPIN) return;
-            let newSlide = currentSlideIndex + direction;
-            if (newSlide < 0) newSlide = 0;
-            if (newSlide > 2) newSlide = 2; 
-            
-            currentSlideIndex = newSlide;
-            const roomRef = doc(db, 'rooms', roomPIN);
-            await updateDoc(roomRef, { slideIndex: currentSlideIndex }).catch(e => showError("Gagal ganti slide"));
-        };
-
-        function setupTrackpad(roomRef) {
-            const trackpad = document.getElementById('trackpad');
-            const feedback = document.getElementById('click-feedback');
-            
-            let isDragging = false;
-            let lastTouchX = 0;
-            let lastTouchY = 0;
-            const sensitivity = 1.2; 
-
-            let lastUpdate = 0;
-            const sendUpdate = async (data) => {
-                const now = Date.now();
-                if (now - lastUpdate > 50) { 
-                    lastUpdate = now;
-                    await updateDoc(roomRef, data).catch(e => console.error(e));
-                }
-            };
-
-            trackpad.addEventListener('pointerdown', (e) => {
-                isDragging = true;
-                lastTouchX = e.clientX;
-                lastTouchY = e.clientY;
-                trackpad.setPointerCapture(e.pointerId);
-
-                feedback.style.left = (e.offsetX - 32) + 'px';
-                feedback.style.top = (e.offsetY - 32) + 'px';
-                feedback.style.transform = 'scale(1)';
-                feedback.style.opacity = '1';
-                
-                sendUpdate({ isClicking: true });
-            });
-
-            trackpad.addEventListener('pointermove', (e) => {
-                if (!isDragging) return;
-                
-                const deltaX = (e.clientX - lastTouchX) / window.innerWidth;
-                const deltaY = (e.clientY - lastTouchY) / window.innerHeight;
-                
-                localX += deltaX * sensitivity;
-                localY += deltaY * sensitivity;
-                
-                localX = Math.max(0, Math.min(1, localX));
-                localY = Math.max(0, Math.min(1, localY));
-                
-                lastTouchX = e.clientX;
-                lastTouchY = e.clientY;
-                
-                sendUpdate({ x: localX, y: localY });
-            });
-
-            trackpad.addEventListener('pointerup', (e) => {
-                isDragging = false;
-                feedback.style.transform = 'scale(2)';
-                feedback.style.opacity = '0';
-                
-                updateDoc(roomRef, { isClicking: false }).catch(e=>console.error(e));
-            });
         }
+
+        function toggleScroll() {
+            isScrolling = !isScrolling;
+            const btn = document.getElementById('client-play-btn');
+            if (isScrolling) {
+                btn.innerHTML = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg> Pause`;
+                btn.classList.replace('text-blue-400', 'text-red-400');
+                scrollLoop();
+            } else {
+                btn.innerHTML = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg> Scroll`;
+                btn.classList.replace('text-red-400', 'text-blue-400');
+                cancelAnimationFrame(scrollFrame);
+            }
+        }
+
+        // Hentikan scroll otomatis jika user menyentuh layar HP
+        document.getElementById('client-scroll-container').addEventListener('touchstart', () => {
+            if (isScrolling) toggleScroll();
+        }, {passive: true});
+
+
+        // ==========================================
+        // AUTO-JOIN JIKA DI BUKA DARI SCAN QR
+        // ==========================================
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomFromUrl = urlParams.get('room');
+            if (roomFromUrl) {
+                // Jika URL memiliki ?room=XXXX, langsung join sebagai HP!
+                showView('view-client-manual');
+                document.getElementById('join-room-input').value = roomFromUrl;
+                joinRoom(roomFromUrl);
+            } else {
+                showView('view-home');
+            }
+        };
+
     </script>
 </body>
 </html>
